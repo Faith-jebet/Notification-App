@@ -86,10 +86,23 @@ export default function App() {
       setTasks(prev => prev.filter(t => t.id !== id));
     });
 
-    // Initial fetch
-    fetch(`/api/tasks/${syncId}`)
-      .then(res => res.json())
-      .then(data => setTasks(data.sort((a: Task, b: Task) => compareAsc(parseISO(a.startTime), parseISO(b.startTime)))));
+    // Initial fetch with error handling
+    const fetchTasks = async () => {
+      try {
+        const response = await fetch(`/api/tasks/${encodeURIComponent(syncId)}`);
+        if (!response.ok) {
+          const text = await response.text();
+          console.error('Server returned error:', text);
+          return;
+        }
+        const data = await response.json();
+        setTasks(data.sort((a: Task, b: Task) => compareAsc(parseISO(a.startTime), parseISO(b.startTime))));
+      } catch (err) {
+        console.error('Failed to fetch tasks:', err);
+      }
+    };
+
+    fetchTasks();
 
     return () => {
       socket.disconnect();

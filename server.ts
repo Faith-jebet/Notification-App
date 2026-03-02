@@ -37,13 +37,19 @@ async function startServer() {
 
   // API Routes
   app.get("/api/tasks/:syncId", (req, res) => {
-    const { syncId } = req.params;
-    const tasks = db.prepare("SELECT * FROM tasks WHERE syncId = ?").all(syncId);
-    res.json(tasks.map(t => ({
-      ...t,
-      notified: !!t.notified,
-      completed: !!t.completed
-    })));
+    try {
+      const { syncId } = req.params;
+      console.log(`Fetching tasks for syncId: ${syncId}`);
+      const tasks = db.prepare("SELECT * FROM tasks WHERE syncId = ?").all(syncId);
+      res.json(tasks.map(t => ({
+        ...t,
+        notified: !!t.notified,
+        completed: !!t.completed
+      })));
+    } catch (error) {
+      console.error("Database error:", error);
+      res.status(500).send("Internal Server Error");
+    }
   });
 
   // Socket.io for real-time updates
