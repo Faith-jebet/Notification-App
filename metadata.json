@@ -1,0 +1,5 @@
+{
+  "name": "TaskPulse",
+  "description": "A smart task reminder app that notifies you exactly when your tasks are about to start.",
+  "requestFramePermissions": []
+}
