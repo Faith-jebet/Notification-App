@@ -61,15 +61,29 @@ export default function App() {
 
   // Initialize Socket.io
   useEffect(() => {
-    const socket = io();
+    console.log("Initializing socket connection...");
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      timeout: 10000,
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      console.log("Socket connected successfully!");
       setIsConnected(true);
       socket.emit('join', syncId);
     });
 
-    socket.on('disconnect', () => setIsConnected(false));
+    socket.on('connect_error', (err) => {
+      console.error("Socket connection error:", err);
+      setIsConnected(false);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log("Socket disconnected:", reason);
+      setIsConnected(false);
+    });
 
     socket.on('task:created', (task: Task) => {
       setTasks(prev => {
@@ -129,28 +143,52 @@ export default function App() {
   };
 
   const addTask = (e: React.FormEvent) => {
+    console.log("addTask called");
     e.preventDefault();
     if (!title || !startTime) return;
 
-    const newTask: Task = {
-      id: crypto.randomUUID(),
-      title,
-      startTime: new Date(startTime).toISOString(),
-      notified: false,
-      completed: false,
-    };
+    try {
+      const date = new Date(startTime);
+      if (isNaN(date.getTime())) {
+        alert("Invalid date selected");
+        return;
+      }
 
-    socketRef.current?.emit('task:create', { syncId, task: newTask });
-    setTitle('');
-    setStartTime('');
+      const newTask: Task = {
+        id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+        title,
+        startTime: date.toISOString(),
+        notified: false,
+        completed: false,
+      };
+
+      // Optimistic update
+      setTasks(prev => [...prev, newTask].sort((a, b) => compareAsc(parseISO(a.startTime), parseISO(b.startTime))));
+      
+      // Emit to server
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('task:create', { syncId, task: newTask });
+      } else {
+        console.warn("Socket not connected, task saved locally only for now");
+      }
+
+      setTitle('');
+      setStartTime('');
+    } catch (err) {
+      console.error("Error adding task:", err);
+    }
   };
 
   const deleteTask = (id: string) => {
+    // Optimistic update
+    setTasks(prev => prev.filter(t => t.id !== id));
     socketRef.current?.emit('task:delete', { syncId, id });
   };
 
   const toggleComplete = (task: Task) => {
     const updated = { ...task, completed: !task.completed };
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
     socketRef.current?.emit('task:update', { syncId, task: updated });
   };
 

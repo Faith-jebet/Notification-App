@@ -54,36 +54,51 @@ async function startServer() {
 
   // Socket.io for real-time updates
   io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+    console.log(`[Socket] Client connected: ${socket.id} (Transport: ${socket.conn.transport.name})`);
 
     socket.on("join", (syncId) => {
       socket.join(syncId);
-      console.log(`Socket ${socket.id} joined room: ${syncId}`);
+      console.log(`[Socket] ${socket.id} joined room: ${syncId}`);
     });
 
     socket.on("task:create", (data) => {
-      const { syncId, task } = data;
-      const stmt = db.prepare("INSERT INTO tasks (id, syncId, title, startTime, notified, completed) VALUES (?, ?, ?, ?, ?, ?)");
-      stmt.run(task.id, syncId, task.title, task.startTime, task.notified ? 1 : 0, task.completed ? 1 : 0);
-      io.to(syncId).emit("task:created", task);
+      try {
+        const { syncId, task } = data;
+        console.log(`[Socket] Creating task for ${syncId}: ${task.title}`);
+        const stmt = db.prepare("INSERT INTO tasks (id, syncId, title, startTime, notified, completed) VALUES (?, ?, ?, ?, ?, ?)");
+        stmt.run(task.id, syncId, task.title, task.startTime, task.notified ? 1 : 0, task.completed ? 1 : 0);
+        io.to(syncId).emit("task:created", task);
+      } catch (err) {
+        console.error(`[Socket] Error creating task:`, err);
+      }
     });
 
     socket.on("task:update", (data) => {
-      const { syncId, task } = data;
-      const stmt = db.prepare("UPDATE tasks SET title = ?, startTime = ?, notified = ?, completed = ? WHERE id = ? AND syncId = ?");
-      stmt.run(task.title, task.startTime, task.notified ? 1 : 0, task.completed ? 1 : 0, task.id, syncId);
-      io.to(syncId).emit("task:updated", task);
+      try {
+        const { syncId, task } = data;
+        console.log(`[Socket] Updating task for ${syncId}: ${task.title}`);
+        const stmt = db.prepare("UPDATE tasks SET title = ?, startTime = ?, notified = ?, completed = ? WHERE id = ? AND syncId = ?");
+        stmt.run(task.title, task.startTime, task.notified ? 1 : 0, task.completed ? 1 : 0, task.id, syncId);
+        io.to(syncId).emit("task:updated", task);
+      } catch (err) {
+        console.error(`[Socket] Error updating task:`, err);
+      }
     });
 
     socket.on("task:delete", (data) => {
-      const { syncId, id } = data;
-      const stmt = db.prepare("DELETE FROM tasks WHERE id = ? AND syncId = ?");
-      stmt.run(id, syncId);
-      io.to(syncId).emit("task:deleted", id);
+      try {
+        const { syncId, id } = data;
+        console.log(`[Socket] Deleting task ${id} for ${syncId}`);
+        const stmt = db.prepare("DELETE FROM tasks WHERE id = ? AND syncId = ?");
+        stmt.run(id, syncId);
+        io.to(syncId).emit("task:deleted", id);
+      } catch (err) {
+        console.error(`[Socket] Error deleting task:`, err);
+      }
     });
 
-    socket.on("disconnect", () => {
-      console.log("Client disconnected:", socket.id);
+    socket.on("disconnect", (reason) => {
+      console.log(`[Socket] Client disconnected: ${socket.id} (Reason: ${reason})`);
     });
   });
 
